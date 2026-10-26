@@ -1,0 +1,40 @@
+# Runs the API and MySQL together:  docker compose up -d --build
+# Inside Docker the API reaches MySQL by its service name (DB_HOST=mysql), not localhost.
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DOCKER_DB_PASSWORD:-secret}
+      MYSQL_DATABASE: backend-course
+    ports:
+      # 3307 on the host, so it does not clash with a local MySQL on 3306.
+      - '3307:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: ${DOCKER_DB_PASSWORD:-secret}
+      DB_NAME: backend-course
+    ports:
+      - '3000:3000'
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
